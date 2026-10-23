@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+#design and AI files
+CLAUDE.md
+DESIGN.md
