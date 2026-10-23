@@ -30,3 +30,13 @@ def create_player(player_in: PlayerCreate) -> Player:
     players.append(player)
     next_player_id += 1
     return player
+
+
+@app.get("/players")
+def list_players() -> list[Player]:
+    return sorted(players, key=lambda p: p.id)
+
+
+@app.get("/ladder")
+def get_ladder() -> list[Player]:
+    return sorted(players, key=lambda p: p.rank)
