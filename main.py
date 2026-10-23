@@ -1,12 +1,14 @@
+from typing import Annotated
+
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 app = FastAPI()
 
 
 class PlayerCreate(BaseModel):
     username: str = Field(pattern=r"^[a-z0-9_.]{3,20}$")
-    name: str = Field(min_length=1, max_length=50)
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
 
 
 class Player(BaseModel):
