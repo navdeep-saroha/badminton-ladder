@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException
@@ -23,10 +24,18 @@ class ChallengeCreate(BaseModel):
     defender_id: int
 
 
+class ChallengeStatus(StrEnum):
+    OPEN = "OPEN"
+    COMPLETED = "COMPLETED"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
+
+
 class Challenge(BaseModel):
     id: int
     challenger_id: int
     defender_id: int
+    status: ChallengeStatus
 
 
 players: list[Player] = []
@@ -36,6 +45,18 @@ challenges: list[Challenge] = []
 next_challenge_id = 1
 
 MAX_CHALLENGE_DISTANCE = 3
+
+# OPEN is the only state a challenge can leave. The other three are final.
+ALLOWED_TRANSITIONS: dict[ChallengeStatus, set[ChallengeStatus]] = {
+    ChallengeStatus.OPEN: {
+        ChallengeStatus.COMPLETED,
+        ChallengeStatus.EXPIRED,
+        ChallengeStatus.CANCELLED,
+    },
+    ChallengeStatus.COMPLETED: set(),
+    ChallengeStatus.EXPIRED: set(),
+    ChallengeStatus.CANCELLED: set(),
+}
 
 
 def find_player(player_id: int) -> Player | None:
@@ -57,6 +78,17 @@ def rank_rule_violation(challenger: Player, defender: Player) -> str | None:
         return "Cannot challenge a player ranked below you"
     if distance > MAX_CHALLENGE_DISTANCE:
         return f"Cannot challenge more than {MAX_CHALLENGE_DISTANCE} ranks above you"
+    return None
+
+
+def can_transition(current: ChallengeStatus, new: ChallengeStatus) -> bool:
+    return new in ALLOWED_TRANSITIONS[current]
+
+
+def find_challenge(challenge_id: int) -> Challenge | None:
+    for challenge in challenges:
+        if challenge.id == challenge_id:
+            return challenge
     return None
 
 
@@ -119,7 +151,29 @@ def create_challenge(challenge_in: ChallengeCreate) -> Challenge:
         id=next_challenge_id,
         challenger_id=challenge_in.challenger_id,
         defender_id=challenge_in.defender_id,
+        status=ChallengeStatus.OPEN,
     )
     challenges.append(challenge)
     next_challenge_id += 1
+    return challenge
+
+
+@app.get("/challenges/{challenge_id}")
+def get_challenge(challenge_id: int) -> Challenge:
+    challenge = find_challenge(challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+    return challenge
+
+
+@app.post("/challenges/{challenge_id}/cancel")
+def cancel_challenge(challenge_id: int) -> Challenge:
+    challenge = find_challenge(challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+    if not can_transition(challenge.status, ChallengeStatus.CANCELLED):
+        raise HTTPException(
+            status_code=409, detail=f"Cannot cancel a {challenge.status} challenge"
+        )
+    challenge.status = ChallengeStatus.CANCELLED
     return challenge
