@@ -1,11 +1,34 @@
-from sqlalchemy import create_engine, text
+from collections.abc import Iterator
 
-# No host or password: connects over the local Unix socket as your Linux user,
-# the same way `psql ladder` does.
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
+
+
 DATABASE_URL = "postgresql+psycopg:///ladder"
 
 # echo=True logs every SQL statement SQLAlchemy sends, so nothing is hidden.
 engine = create_engine(DATABASE_URL, echo=True)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+# Maps the existing `players` table to a Python class. schema.sql owns the table
+# and its constraints; this class only tells SQLAlchemy which columns exist.
+class PlayerRow(Base):
+    __tablename__ = "players"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str]
+    name: Mapped[str]
+    rank: Mapped[int]
+
+
+def get_session() -> Iterator[Session]:
+    """One session per request, closed when the request finishes."""
+    with Session(engine) as session:
+        yield session
 
 
 if __name__ == "__main__":
